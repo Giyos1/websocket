@@ -1,10 +1,13 @@
-import json
+from django.shortcuts import render
+
 from rest_framework.views import APIView
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from .serializers import TextSerializer
 from rest_framework.response import Response
 
+def index(request):
+    return render(request, 'home.html')
 
 # Create your views here.
 
