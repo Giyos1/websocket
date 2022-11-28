@@ -125,16 +125,3 @@
 #
 #     return response
 
-split each element into partitions of size 1
-
-recursively merge adjacent partitions
-
-+for i = leftPartIdx to rightPartIdx
-
-    if leftPartHeadValue <= rightPartHeadValue
-
-      copy leftPartHeadValue
-
-    else: copy rightPartHeadValue; Increase InvIdx
-
-copy elements back to original array
