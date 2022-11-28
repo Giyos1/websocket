@@ -1,230 +1,140 @@
-# import asyncio
-# import time
-# import random
-# from threading import Thread
-# from enum import Enum, auto
-# import heapq
+# import json
+# import traceback
+# import uuid
 # import sys
+# from fastapi import APIRouter
+# from fastapi import WebSocket
+# from paddlespeech.server.utils.errors import failed_response, ErrorCode
+# from paddlespeech.server.utils.exception import ServerBaseException
+# from starlette.websockets import WebSocketState as WebSocketState
+#
+# from paddlespeech.cli.log import logger
+# from paddlespeech.server.engine.engine_pool import get_engine_pool
+#
+# router = APIRouter()
 #
 #
-# def random_delay():
-#     return random.random() * 5
+# @router.websocket('/paddlespeech/tts/streaming')
+# async def websocket_endpoint(websocket: WebSocket):
+#     """PaddleSpeech Online TTS Server api
+#     Args:
+#         websocket (WebSocket): the websocket instance
+#     """
 #
+#     # 1. the interface wait to accept the websocket protocal header
+#     #   and only we receive the header, it establish the connection with specific thread
+#     await websocket.accept()
 #
-# def random_countdown():
-#     return random.randrange(5)
+#     # 2. if we accept the websocket headers, we will get the online tts engine instance
+#     engine_pool = get_engine_pool()
+#     tts_engine = engine_pool['tts']
 #
+#     connection_handler = None
 #
-# def launch_rocket(delay, countdown):
-#     time.sleep(delay)
-#     for i in reversed(range(countdown)):
-#         print(f"{i + 1}...")
-#         time.sleep(1)
-#     print('rocket lunched !!')
+#     if tts_engine.engine_type == "online":
+#         from paddlespeech.server.engine.tts.online.python.tts_engine import PaddleTTSConnectionHandler
+#     elif tts_engine.engine_type == "online-onnx":
+#         from paddlespeech.server.engine.tts.online.onnx.tts_engine import PaddleTTSConnectionHandler
+#     else:
+#         logger.error("Online tts engine only support online or online-onnx.")
+#         sys.exit(-1)
 #
+#     try:
+#         while True:
+#             # careful here, changed the source code from starlette.websockets
+#             assert websocket.application_state == WebSocketState.CONNECTED
+#             message = await websocket.receive()
+#             websocket._raise_on_disconnect(message)
+#             message = json.loads(message["text"])
 #
-# class State(Enum):
-#     WAITING = auto()
-#     COUNTING = auto()
-#     LAUNCHING = auto()
+#             if 'signal' in message:
+#                 # start request
+#                 if message['signal'] == 'start':
+#                     session = uuid.uuid1().hex
+#                     resp = {
+#                         "status": 0,
+#                         "signal": "server ready",
+#                         "session": session
+#                     }
 #
+#                     connection_handler = PaddleTTSConnectionHandler(tts_engine)
+#                     await websocket.send_json(resp)
 #
-# class Op(Enum):
-#     WAIT = auto()
-#     STOP = auto()
+#                 # end request
+#                 elif message['signal'] == 'end':
+#                     connection_handler = None
+#                     resp = {
+#                         "status": 0,
+#                         "signal": "connection will be closed",
+#                         "session": session
+#                     }
+#                     await websocket.send_json(resp)
+#                     break
+#                 else:
+#                     resp = {"status": 0, "signal": "no valid json data"}
+#                     await websocket.send_json(resp)
 #
+#             # speech synthesis request
+#             elif 'text' in message:
+#                 text = message["text"]
+#                 spk_id = message["spk_id"]
 #
-# class Launch:
-#     def __init__(self, delay, countdown):
-#         self._state = State.WAITING
-#         self._delay = delay
-#         self._countdown = countdown
+#                 # run
+#                 wav_generator = connection_handler.run(
+#                     sentence=text, spk_id=spk_id)
 #
-#     def step(self):
-#         if self._state is State.WAITING:
-#             return Op.WAIT, self._delay
-#         if self._state is State.COUNTING:
-#             if self._countdown == 0:
-#                 self._state = State.LAUNCHING
+#                 while True:
+#                     try:
+#                         tts_results = next(wav_generator)
+#                         resp = {"status": 1, "audio": tts_results}
+#                         await websocket.send_json(resp)
+#                     except StopIteration as e:
+#                         resp = {"status": 2, "audio": ''}
+#                         await websocket.send_json(resp)
+#                         logger.info(
+#                             "Complete the synthesis of the audio streams")
+#                         break
+#                     except Exception as e:
+#                         resp = {"status": -1, "audio": ''}
+#                         await websocket.send_json(resp)
+#                         break
+#
 #             else:
-#                 print(f'{self._countdown}...')
-#                 self._countdown -= 1
-#                 return Op.WAIT, 1
-#         if self._state is State.LAUNCHING:
-#             print('Rocket launched!')
-#             return Op.STOP, None
+#                 logger.error(
+#                     "Invalid request, please check if the request is correct.")
 #
-#         assert False, self._state
+#     except Exception as e:
+#         logger.error(e)
 #
 #
-# def now():
-#     return time.time()
-#
-#
-# def run_fsm(rockets):
-#     start = now()
-#     work = [(start, i, Launch(d, c)) for i, (d, c) in enumerate(rockets)]
-#
-#     while work:
-#         step_at, id, launch = heapq.heappop(work)
-#         wait = step_at - now()
-#
-#         if wait > 0:
-#             time.sleep(wait)
-#
-#         op, arg = launch.step()
-#
-#         if op is Op.WAIT:
-#             step_at = now() + arg
-#             heapq.heappush(work, (step_at, id, launch))
-#         else:
-#             assert op is Op.STOP
-#
-#
-# def rockets():
-#     N = 10_000
-#     return [
-#         (random_delay(), random_countdown())
-#         for _ in range(N)
-#     ]
-#
-#
-# def run_threads():
-#     threads = [Thread(target=launch_rocket, args=(d, c))
-#                for d, c in rockets()]
-#
-#     for thread in threads:
-#         thread.start()
-#
-#     for thread in threads:
-#         thread.join()
-#
-#
-# if __name__ == '__main__':
-#     # for d, c in rockets():
-#     #     launch_rocket(d, c)
-#
-#     # run_threads()
-#
-#     # run_fsm(rockets())
-#     import os
-#     from time import sleep
-#     from threading import Thread
-#
-#     threads = [
-#         Thread(target=lambda: sleep(60)) for i in range(10000)]
-#
-#     [t.start()
-#      for t in threads]
-#     print(f'PID = {os.getpid()}')
-#
-#     [t.join()
-#      for t in threads]
-# from models import get_audio
-#
-#
-# async def execute(text):
-#     result = get_audio(text)
-
-
-# async def main():
-#     # Using asyncio.create_task() method to run coroutines concurrently as asyncio
-#     task1 = asyncio.create_task(
-#         execute(2, 'hello'))
-#
-#     task2 = asyncio.create_task(
-#         execute(1, 'world'))
-#
-#     print(f"started at {time.strftime('%X')}")
-#
-#     # Wait until both tasks are completed (should take
-#     # around 2 seconds.)
-#     await task1
-#     await task2
-#
-#     print(f"finished at {time.strftime('%X')}")
-#
-#
-# def execute2(delay, value):
-#     time.sleep(delay)
-#     print(value)
-#
-#
-# def main2():
-#     # Using asyncio.create_task() method to run coroutines concurrently as asyncio
-#     print(f"started at {time.strftime('%X')}")
-#     task1 = execute2(2, 'hello')
-#
-#     task2 = execute2(1, 'world')
-#
-#     # Wait until both tasks are completed (should take
-#     # around 2 seconds.)
-#
-#     print(f"finished at {time.strftime('%X')}")
-#
-#
-# asyncio.run(main())
-
-# # main2()
-# from models import get_audio
-# import asyncio
-#
-# # async def main(text):
-# #     list1 = []
-# #     x = text.split()
-# #     for _ in x:
-# #         task1 = loop.create_task(get_audio(_))
-# #         list1.append(task1)
-# #
-# #     await asyncio.wait(list1)
-#
-# import asyncio
-#
-#
-# async def async_func(text):
-#     print(get_audio(text))
-#
-#
-# async def main():
-#     taskA = loop.create_task(async_func('taskA'))
-#     taskB = loop.create_task(async_func('taskB'))
-#     taskC = loop.create_task(async_func('taskC'))
-#     await asyncio.wait([taskA, taskB, taskC])
-
-
-# if __name__ == "__main__":
+# @router.get("/paddlespeech/tts/streaming/samplerate")
+# def get_samplerate():
 #     try:
-#         loop = asyncio.get_event_loop()
-#         loop.run_until_complete(main())
-#     except:
-#         pass
+#         engine_pool = get_engine_pool()
+#         tts_engine = engine_pool['tts']
+#         logger.info("Get tts engine successfully.")
+#         sample_rate = tts_engine.sample_rate
+#
+#         response = {"sample_rate": sample_rate}
+#
+#     except ServerBaseException as e:
+#         response = failed_response(e.error_code, e.msg)
+#     except BaseException:
+#         response = failed_response(ErrorCode.SERVER_UNKOWN_ERR)
+#         traceback.print_exc()
+#
+#     return response
 
-# if __name__ == "__main__":
-#     try:
-#         loop = asyncio.get_event_loop()
-#         loop.run_until_complete(main("Assalomu Alleykum Valeykum Assalom hdsa Ulu"))
-#     except:
-#         pass
-# def romanToInt(s):
-#     """
-#     :type s: str
-#     :rtype: int
-#     """
-#     dict = {'I': 1,
-#             'V': 5,
-#             'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000, }
-#     a = 0
-#     for i in range(len(s)):
-#         if i + 1 == len(s):
-#             a += (dict[s[i]])
-#             return a
-#         if dict[s[i]] < dict[s[i + 1]]:
-#             print(f'{a}-{dict[s[i]]}')
-#             a -= dict[s[i]]
-#             print(a)
-#         else:
-#             a += dict[s[i]]
-#
-#
-# if __name__ == '__main__':
-#     print(romanToInt("MCMXCIV"))
+split each element into partitions of size 1
+
+recursively merge adjacent partitions
+
++for i = leftPartIdx to rightPartIdx
+
+    if leftPartHeadValue <= rightPartHeadValue
+
+      copy leftPartHeadValue
+
+    else: copy rightPartHeadValue; Increase InvIdx
+
+copy elements back to original array

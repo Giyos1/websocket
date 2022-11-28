@@ -51,15 +51,41 @@ class AudioConsumer(AsyncConsumer):
                 'value': 'sozlarni bolib oldi'
             }
         )
-        for i in range(0, len(text_list) - 3, 3):
-            audio = get_audio(" ".join(text_list[i:i + 3]))
+
+        # async def send_audio(texts):
+        #     audio = get_audio(" ".join(texts))
+        #     await self.channel_layer.group_send(
+        #         'notification',
+        #         {
+        #             'type': 'ws.data',
+        #             'data': {
+        #                 'type': 'new_chunk',
+        #                 'audio': audio
+        #             }
+        #         }
+        #     )
+
+        while len(text_list) > 5:
+            audio = get_audio(" ".join(text_list[0:3]))
+            text_list = text_list[3:]
             await self.channel_layer.group_send(
                 'notification',
                 {
                     'type': 'ws.data',
                     'data': {
                         'type': 'new_chunk',
-                        'number': f"{i}-word",
+                        'audio': audio
+                    }
+                }
+            )
+        if len(text_list) > 0:
+            audio = get_audio(" ".join(text_list))
+            await self.channel_layer.group_send(
+                'notification',
+                {
+                    'type': 'ws.data',
+                    'data': {
+                        'type': 'new_chunk',
                         'audio': audio
                     }
                 }
