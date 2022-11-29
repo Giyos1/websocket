@@ -2,60 +2,60 @@
 
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
+<head>
+    <meta charset="UTF-8"/>
     <title>Title</title>
-  </head>
-  <body>
-    <button id="start" type="button">Start</button>
-    <script
-      type="text/javascript"
-      src="{% static '/js/AudioFeeder.min.js' %}"
-    ></script>
-    <script type="text/javascript">
-      document.body.addEventListener(
+</head>
+<body>
+<button id="start" type="button">Start</button>
+<script
+        type="text/javascript"
+        src="{% static '/js/AudioFeeder.min.js' %}"
+></script>
+<script type="text/javascript">
+    document.body.addEventListener(
         "click",
         () => {
-          window.feeder = new AudioFeeder();
-          feeder.init(2, 24000);
-          feeder.waitUntilReady(function () {
-            feeder.start();
-          });
+            window.feeder = new AudioFeeder();
+            feeder.init(2, 24000);
+            feeder.waitUntilReady(function () {
+                feeder.start();
+            });
         },
         true
-      );
-      const btn = document.getElementById("start");
-      btn.addEventListener("click", () => {
+    );
+    const btn = document.getElementById("start");
+    btn.addEventListener("click", () => {
         fetch("/api", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: "Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman!",
-          }),
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                text: "Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman!Ijtimoiy tarmoqlarda Samarqandda bir necha shaxslar o‘rtasida janjal sodir bo‘lgani aks etgan video tarqaldi. Mazkur holat yuzasidan viloyat Ichki ishlar boshqarmasi ma’lumot berdi.",
+            }),
         });
-      });
-      const socket = new WebSocket("ws://localhost:8000/ws/test/");
-      socket.onopen = (event) => {
+    });
+    const socket = new WebSocket("ws://localhost:8000/ws/test/");
+    socket.onopen = (event) => {
         console.log("onopen", event);
-      };
-      socket.onmessage = (event) => {
+    };
+    socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
         if (data.type === "data") {
-          const d = new Float32Array(data.data.audio);
-          feeder.bufferData([d, d]);
+            const d = new Float32Array(data.data.audio);
+            feeder.bufferData([d, d]);
         } else {
-          console.log("onmessage", data);
+            console.log("onmessage", data);
         }
-      };
-      socket.onclose = (event) => {
+    };
+    socket.onclose = (event) => {
         console.log("onclose", event);
-      };
-      socket.onerror = (event) => {
+    };
+    socket.onerror = (event) => {
         console.log("onerror", event);
-      };
-    </script>
-  </body>
+    };
+</script>
+</body>
 </html>
