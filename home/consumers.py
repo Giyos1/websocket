@@ -83,6 +83,7 @@ class AudioConsumer(AsyncConsumer):
             await self.channel_layer.group_send(
                 'notification',
                 {
+
                     'type': 'ws.data',
                     'data': {
                         'type': 'new_chunk',

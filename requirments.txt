@@ -4,3 +4,4 @@ channels-redis==4.0.0
 channels==3.0.5
 torch
 omegaconf
+numpy
