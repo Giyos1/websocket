@@ -7,6 +7,7 @@
     <title>Title</title>
 </head>
 <body>
+<textarea id="text" cols="100" rows="20">Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman!Ijtimoiy tarmoqlarda Samarqandda bir necha shaxslar o‘rtasida janjal sodir bo‘lgani aks etgan video tarqaldi. Mazkur holat yuzasidan viloyat Ichki ishlar boshqarmasi ma’lumot berdi.</textarea>
 <button id="start" type="button">Start</button>
 <script
         type="text/javascript"
@@ -32,11 +33,11 @@
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                text: "Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman!Ijtimoiy tarmoqlarda Samarqandda bir necha shaxslar o‘rtasida janjal sodir bo‘lgani aks etgan video tarqaldi. Mazkur holat yuzasidan viloyat Ichki ishlar boshqarmasi ma’lumot berdi.",
+                text: document.getElementById("textarea").value
             }),
         });
     });
-    const socket = new WebSocket("ws://localhost:8000/ws/test/");
+    const socket = new WebSocket("ws://oyqiz.airi.uz/ws/test/");
     socket.onopen = (event) => {
         console.log("onopen", event);
     };
