@@ -25,31 +25,14 @@
         },
         true
     );
-    const btn = document.getElementById("start");
-    btn.addEventListener("click", () => {
-        fetch("/api", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                text: document.getElementById("textarea").value
-            }),
-        });
-    });
-    const socket = new WebSocket("ws://oyqiz.airi.uz/ws/test/");
+    const socket = new WebSocket("ws://127.0.0.1:8000/ws/test/");
+    socket.binaryType = 'arraybuffer';
     socket.onopen = (event) => {
         console.log("onopen", event);
     };
     socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.type === "data") {
-            const d = new Float32Array(data.data.audio);
-            feeder.bufferData([d, d]);
-        } else {
-            console.log("onmessage", data);
-        }
+        const floatArray = new Float32Array(event.data);
+        feeder.bufferData([floatArray, floatArray]);
     };
     socket.onclose = (event) => {
         console.log("onclose", event);
@@ -57,6 +40,12 @@
     socket.onerror = (event) => {
         console.log("onerror", event);
     };
+
+    const btn = document.getElementById("start");
+    btn.addEventListener("click", () => {
+        const text = document.getElementById("text").value;
+        socket.send(text)
+    });
 </script>
 </body>
 </html>
