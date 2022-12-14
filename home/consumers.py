@@ -1,13 +1,14 @@
 
+import json
 import numpy
 import torch
 from functools import reduce
-from pydub.silence import split_on_silence
 from pydub import AudioSegment
 from channels.consumer import AsyncConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
 from models import get_audio
 from transformers import Wav2Vec2Processor, AutoModelForCTC
+from .utils import split_on_silence, rechunk
 
 processor = Wav2Vec2Processor.from_pretrained("language")
 model = AutoModelForCTC.from_pretrained("language")
@@ -86,6 +87,7 @@ class AudioConsumer(AsyncConsumer):
                 {
                     'type': message.get('response_type'),
                     'text': text,
+                    'is_final': message.get('is_final'),
                 }
             )
 
@@ -108,28 +110,36 @@ class LiveConsumer(AsyncWebsocketConsumer):
         else:
             self.audio_segment += audio_segment
 
-        if len(self.audio_segment) > 4000:
-            chunks = split_on_silence(
-                self.audio_segment,
-                min_silence_len=200,
-                silence_thresh=self.audio_segment.dBFS - 16,
-                seek_step=10,
-                keep_silence=100,
-            )
-            if len(chunks) > 0:
-                sound = reduce(lambda a, b: a + b, chunks)
-                if len(sound) > 500:
-                    await self.channel_layer.send(
-                        'audio',
-                        {
-                            'type': 'speechtotext',
-                            'response_type': 'ws.data',
-                            'response_channel': self.channel_name,
-                            'bytes': sound.raw_data,
-                        }
-                    )
+        print(len(self.audio_segment))
 
-            self.audio_segment = None
+        if len(self.audio_segment) > 1000:
+            chunks = split_on_silence(self.audio_segment)
+            if len(chunks == 0):
+                return
 
-    async def ws_data(self, event):
-        await self.send(text_data=event.get('text'))
+            rechunks = [v for v in rechunk(chunks, 3000)]
+
+            cutoff = 0
+
+            for index, (chunk, start, end) in enumerate(rechunks):
+                await self.channel_layer.send(
+                    'audio',
+                    {
+                        'type': 'speechtotext',
+                        'response_type': 'ws.data',
+                        'response_channel': self.channel_name,
+                        'bytes': chunk.raw_data,
+                        'is_final': index != len(rechunks) - 1,
+                    }
+                )
+                if index != len(rechunks) - 1:
+                    cutoff = end
+
+            if cutoff > 0:
+                self.audio_segment = self.audio_segment[cutoff:]
+
+    async def ws_data(self, message):
+        await self.send(text_data=json.dumps({
+            'text': message.get('text'),
+            'is_final': message.get('is_final'),
+        }))
