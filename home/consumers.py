@@ -71,7 +71,8 @@ class AudioConsumer(AsyncConsumer):
             )
 
     async def speechtotext(self, message):
-        fp_arr = numpy.array(message.get('bytes')).T.astype(numpy.float32)
+        sound = AudioSegment(data=message.get('bytes'), sample_width=2, frame_rate=16000, channels=1)
+        fp_arr = numpy.array(sound.get_array_of_samples()).T.astype(numpy.float32)
         model_input = processor(fp_arr, sampling_rate=16000, return_tensors="pt").input_values
         logits = model(model_input).logits
         bashorat = torch.argmax(logits, dim=-1)
@@ -117,7 +118,7 @@ class LiveConsumer(AsyncWebsocketConsumer):
                             'type': 'speechtotext',
                             'response_type': 'ws.data',
                             'response_channel': self.channel_name,
-                            'bytes': chunk.get_array_of_samples(),
+                            'bytes': chunk.raw_data,
                         }
                     )
 
