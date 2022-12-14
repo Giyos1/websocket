@@ -95,6 +95,7 @@ class AudioConsumer(AsyncConsumer):
 class LiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.audio_segment = None
+        self.count = None
         await self.accept()
 
     async def disconnect(self, *args, **kwargs):
@@ -110,9 +111,9 @@ class LiveConsumer(AsyncWebsocketConsumer):
         else:
             self.audio_segment += audio_segment
 
-        print(len(self.audio_segment))
+        self.count += 1
 
-        if len(self.audio_segment) % 1024 == 0:
+        if len(self.count) % 8 == 0:
             chunks = split_on_silence(self.audio_segment)
             rechunks = [v for v in rechunk(chunks, 3000)]
 
