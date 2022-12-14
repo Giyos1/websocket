@@ -1,5 +1,7 @@
-import json
 
+from io import BytesIO
+from home.utils import split_on_silence, rechunk
+from pydub import AudioSegment
 from channels.consumer import AsyncConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
 from models import get_audio
@@ -65,11 +67,14 @@ class AudioConsumer(AsyncConsumer):
             )
 
     async def speechtotext(self, message):
+        print("got")
+        print(message)
         pass
 
 
 class LiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        self.audio_segment = None
         await self.accept()
 
     async def disconnect(self, *args, **kwargs):
@@ -78,11 +83,28 @@ class LiveConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data=None, bytes_data=None):
         if not bytes_data:
             return
-        await self.channel_layer.send('audio', {
-            'type': 'speechtotext',
-            'bytes': bytes_data,
-            'response_channel': self.channel_name,
-        })
+        audio_segment = AudioSegment(bytes_data, sample_width=2, frame_rate=16000, channels=1)
+
+        if self.audio_segment is None:
+            self.audio_segment = audio_segment
+        else:
+            self.audio_segment += audio_segment
+
+        if len(self.audio_segment) > 4000:
+            chunks = split_on_silence(self.audio_segment)
+            rechunks = [v for v in rechunk(chunks, 3000)]
+            if len(rechunks) > 1:
+                for chunk, start, end in rechunks:
+                    wavIO=BytesIO()
+                    chunk.export(wavIO, format="wav")
+                    await self.channel_layer.send(
+                        'audio',
+                        {
+                            'type': 'speechtotext',
+                            'response_channel': self.channel_name,
+                            'bytes': wavIO.getvalue(),
+                        }
+                    )
 
     async def ws_data(self, event):
         await self.send(text_data=event['text'])
