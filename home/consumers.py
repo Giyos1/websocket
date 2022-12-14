@@ -63,3 +63,26 @@ class AudioConsumer(AsyncConsumer):
                     'audio': audio,
                 }
             )
+
+    async def speechtotext(self, message):
+        pass
+
+
+class LiveConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        await self.accept()
+
+    async def disconnect(self, *args, **kwargs):
+        pass
+
+    async def receive(self, text_data=None, bytes_data=None):
+        if not bytes_data:
+            return
+        await self.channel_layer.send('audio', {
+            'type': 'speechtotext',
+            'bytes': bytes_data,
+            'response_channel': self.channel_name,
+        })
+
+    async def ws_data(self, event):
+        await self.send(text_data=event['text'])
