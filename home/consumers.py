@@ -95,7 +95,7 @@ class AudioConsumer(AsyncConsumer):
 class LiveConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.audio_segment = None
-        self.count = None
+        self.count = 0
         await self.accept()
 
     async def disconnect(self, *args, **kwargs):
