@@ -1,7 +1,8 @@
 
 import numpy
 import torch
-from home.utils import split_on_silence, rechunk
+from functools import reduce
+from pydub.silence import split_on_silence
 from pydub import AudioSegment
 from channels.consumer import AsyncConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -108,19 +109,27 @@ class LiveConsumer(AsyncWebsocketConsumer):
             self.audio_segment += audio_segment
 
         if len(self.audio_segment) > 4000:
-            chunks = split_on_silence(self.audio_segment)
-            rechunks = [v for v in rechunk(chunks, 3000)]
-            if len(rechunks) > 1:
-                for chunk, start, end in rechunks:
+            chunks = split_on_silence(
+                self.audio_segment,
+                min_silence_len=200,
+                silence_thresh=self.audio_segment.dBFS - 16,
+                seek_step=10,
+                keep_silence=100,
+            )
+            if len(chunks) > 0:
+                sound = reduce(lambda a, b: a + b, chunks)
+                if len(sound) > 500:
                     await self.channel_layer.send(
                         'audio',
                         {
                             'type': 'speechtotext',
                             'response_type': 'ws.data',
                             'response_channel': self.channel_name,
-                            'bytes': chunk.raw_data,
+                            'bytes': sound.raw_data,
                         }
                     )
+
+            self.audio_segment = None
 
     async def ws_data(self, event):
         await self.send(text_data=event.get('text'))
