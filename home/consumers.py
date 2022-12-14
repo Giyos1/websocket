@@ -1,11 +1,15 @@
 
-from io import BytesIO
+import numpy
+import torch
 from home.utils import split_on_silence, rechunk
 from pydub import AudioSegment
 from channels.consumer import AsyncConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
 from models import get_audio
+from transformers import Wav2Vec2Processor, AutoModelForCTC
 
+processor = Wav2Vec2Processor.from_pretrained("language")
+model = AutoModelForCTC.from_pretrained("language")
 
 class TestConsumer(AsyncWebsocketConsumer):
     # ws://
@@ -67,9 +71,21 @@ class AudioConsumer(AsyncConsumer):
             )
 
     async def speechtotext(self, message):
-        print("got")
-        print(message)
-        pass
+        fp_arr = numpy.array(message.get('bytes')).T.astype(numpy.float32)
+        model_input = processor(fp_arr, sampling_rate=16000, return_tensors="pt").input_values
+        logits = model(model_input).logits
+        bashorat = torch.argmax(logits, dim=-1)
+        transcription = processor.batch_decode(bashorat)
+        text = transcription[0] if len(transcription) > 0 else None
+
+        if text:
+            await self.channel_layer.send(
+                message.get('response_channel'),
+                {
+                    'type': message.get('response_type'),
+                    'text': text,
+                }
+            )
 
 
 class LiveConsumer(AsyncWebsocketConsumer):
@@ -95,16 +111,15 @@ class LiveConsumer(AsyncWebsocketConsumer):
             rechunks = [v for v in rechunk(chunks, 3000)]
             if len(rechunks) > 1:
                 for chunk, start, end in rechunks:
-                    wavIO=BytesIO()
-                    chunk.export(wavIO, format="wav")
                     await self.channel_layer.send(
                         'audio',
                         {
                             'type': 'speechtotext',
+                            'response_type': 'ws.data',
                             'response_channel': self.channel_name,
-                            'bytes': wavIO.getvalue(),
+                            'bytes': chunk.get_array_of_samples(),
                         }
                     )
 
     async def ws_data(self, event):
-        await self.send(text_data=event['text'])
+        await self.send(text_data=event.get('text'))

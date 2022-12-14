@@ -2,10 +2,9 @@ Django==4.1.2
 djangorestframework
 channels-redis==4.0.0
 channels==3.0.5
-torch
 omegaconf
 numpy
 
 pydub==0.25.1
-datasets==2.4.0
 transformers==4.22.0
+torch==1.12.1
