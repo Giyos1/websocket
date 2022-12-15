@@ -2,50 +2,53 @@
 
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8"/>
+  <head>
+    <meta charset="UTF-8" />
     <title>Title</title>
-</head>
-<body>
-<textarea id="text" cols="100" rows="20">Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman!Ijtimoiy tarmoqlarda Samarqandda bir necha shaxslar o‘rtasida janjal sodir bo‘lgani aks etgan video tarqaldi. Mazkur holat yuzasidan viloyat Ichki ishlar boshqarmasi ma’lumot berdi.</textarea>
-<button id="start" type="button">Start</button>
-<script
-        type="text/javascript"
-        src="{% static '/js/AudioFeeder.min.js' %}"
-></script>
-<script type="text/javascript">
-    document.body.addEventListener(
+  </head>
+  <body>
+    <textarea id="text" cols="100" rows="20">
+Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman!Ijtimoiy tarmoqlarda Samarqandda bir necha shaxslar o‘rtasida janjal sodir bo‘lgani aks etgan video tarqaldi. Mazkur holat yuzasidan viloyat Ichki ishlar boshqarmasi ma’lumot berdi.</textarea
+    >
+    <button id="start" type="button">Start</button>
+    <script
+      type="text/javascript"
+      src="{% static '/js/AudioFeeder.min.js' %}"
+    ></script>
+    <script type="text/javascript">
+      document.body.addEventListener(
         "click",
         () => {
-            window.feeder = new AudioFeeder();
-            feeder.init(2, 24000);
-            feeder.waitUntilReady(function () {
-                feeder.start();
-            });
+          window.feeder = new AudioFeeder();
+          feeder.init(2, 24000);
+          feeder.waitUntilReady(function () {
+            feeder.start();
+          });
         },
         true
-    );
-    const socket = new WebSocket("ws://127.0.0.1:8000/ws/test/");
-    socket.binaryType = 'arraybuffer';
-    socket.onopen = (event) => {
+      );
+      const protocol = location.protocol === "https:" ? "wss" : "ws";
+      const socket = new WebSocket(`${protocol}://${location.host}/ws/test/`);
+      socket.binaryType = "arraybuffer";
+      socket.onopen = (event) => {
         console.log("onopen", event);
-    };
-    socket.onmessage = (event) => {
+      };
+      socket.onmessage = (event) => {
         const floatArray = new Float32Array(event.data);
         feeder.bufferData([floatArray, floatArray]);
-    };
-    socket.onclose = (event) => {
+      };
+      socket.onclose = (event) => {
         console.log("onclose", event);
-    };
-    socket.onerror = (event) => {
+      };
+      socket.onerror = (event) => {
         console.log("onerror", event);
-    };
+      };
 
-    const btn = document.getElementById("start");
-    btn.addEventListener("click", () => {
+      const btn = document.getElementById("start");
+      btn.addEventListener("click", () => {
         const text = document.getElementById("text").value;
-        socket.send(text)
-    });
-</script>
-</body>
+        socket.send(text);
+      });
+    </script>
+  </body>
 </html>
