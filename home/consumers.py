@@ -17,26 +17,19 @@ class TestConsumer(AsyncWebsocketConsumer):
     # ws://
     async def connect(self):
         await self.accept()
-        # await self.channel_layer.group_add(
-        #     self.channel_group,
-        #     self.channel_name,
-        # )
-        # await self.send(text_data=json.dumps({'status': 'connected from django channels'}))
 
     async def disconnect(self, *args, **kwargs):
         pass
-        # await self.channel_layer.group_discard(
-        #     "notification",
-        #     self.channel_name,
-        # )
 
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data:
             return
+
         await self.channel_layer.send('audio', {
             'type': 'process',
             'text': text_data,
             'response_channel': self.channel_name,
+            'response_type': 'ws.data',
         })
 
     async def ws_data(self, event):
@@ -48,6 +41,7 @@ class AudioConsumer(AsyncConsumer):
 
     async def process(self, message):
         response_channel = message.get('response_channel')
+        response_type = message.get('response_type')
         text = message.get('text')
 
         text_list = text.split()
@@ -58,7 +52,7 @@ class AudioConsumer(AsyncConsumer):
             await self.channel_layer.send(
                 response_channel,
                 {
-                    'type': 'ws.data',
+                    'type': response_type,
                     'audio': audio,
                 }
             )
@@ -67,7 +61,7 @@ class AudioConsumer(AsyncConsumer):
             await self.channel_layer.send(
                 response_channel,
                 {
-                    'type': 'ws.data',
+                    'type': response_type,
                     'audio': audio,
                 }
             )
