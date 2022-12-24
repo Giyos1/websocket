@@ -11,10 +11,10 @@ model.to(torch.device('cpu'))  # gpu or cpu
 
 def get_audio(text):
     audio = model.apply_tts(text=text,
-                           speaker='dilnavoz',
-                           sample_rate=24000,
-                           put_accent=True,
-                           put_yo=True)
+                            speaker='dilnavoz',
+                            sample_rate=24000,
+                            put_accent=True,
+                            put_yo=True)
 
     floatlist = audio.tolist()
 
