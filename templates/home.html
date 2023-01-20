@@ -5,37 +5,52 @@
   <head>
     <meta charset="UTF-8" />
     <title>Title</title>
+    <style>
+      body {
+        background: #333;
+      }
+    </style>
   </head>
   <body>
-    <textarea id="text" cols="100" rows="20">
-Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman!Ijtimoiy tarmoqlarda Samarqandda bir necha shaxslar o‘rtasida janjal sodir bo‘lgani aks etgan video tarqaldi. Mazkur holat yuzasidan viloyat Ichki ishlar boshqarmasi ma’lumot berdi.</textarea
-    >
-    <button id="start" type="button">Start</button>
+    <div id="siri-container"></div>
     <script
       type="text/javascript"
       src="{% static '/js/AudioFeeder.min.js' %}"
     ></script>
+    <script src="https://unpkg.com/siriwave/dist/siriwave.umd.min.js"></script>
+
     <script type="text/javascript">
-      document.body.addEventListener(
-        "click",
-        () => {
-          window.feeder = new AudioFeeder();
-          feeder.init(2, 24000);
-          feeder.waitUntilReady(function () {
-            feeder.start();
-          });
-        },
-        true
-      );
+      var siriWave = new SiriWave({
+        style: "ios9",
+        container: document.getElementById("siri-container"),
+        width: 640,
+        height: 200,
+        autostart: false,
+      });
+
       const protocol = location.protocol === "https:" ? "wss" : "ws";
-      const socket = new WebSocket(`${protocol}://${location.host}/ws/speech/`);
+      const socket = new WebSocket(`${protocol}://${location.host}/ws/oyqiz/`);
       socket.binaryType = "arraybuffer";
       socket.onopen = (event) => {
-        console.log("onopen", event);
+        window.feeder = new AudioFeeder();
+        feeder.init(2, 24000);
+        feeder.waitUntilReady(function () {
+          feeder.start();
+        });
       };
       socket.onmessage = (event) => {
-        const floatArray = new Float32Array(event.data);
-        feeder.bufferData([floatArray, floatArray]);
+        if (typeof event.data === "string") {
+          const data = JSON.parse(event.data);
+          if (data.is_listening === true) {
+            siriWave.start();
+          }
+          if (data.is_listening === false) {
+            siriWave.stop();
+          }
+        } else {
+          const floatArray = new Float32Array(event.data);
+          feeder.bufferData([floatArray, floatArray]);
+        }
       };
       socket.onclose = (event) => {
         console.log("onclose", event);
@@ -44,11 +59,53 @@ Assalomu alaykum. Yahshimisizlar? Sizlarni ko'rayotganimdan banihoyat hursandman
         console.log("onerror", event);
       };
 
-      const btn = document.getElementById("start");
-      btn.addEventListener("click", () => {
-        const text = document.getElementById("text").value;
-        socket.send(text);
-      });
+      function makeWavData(data) {
+        var buffer = new ArrayBuffer(2 * data.length);
+        var uint8 = new Uint8Array(buffer);
+        var i, d;
+
+        for (i = 0; i < data.length; i++) {
+          d = (data[i] * 32767 + 0x10000) & 0xffff;
+          uint8[i * 2] = d & 0xff;
+          uint8[i * 2 + 1] = d >>> 8;
+        }
+
+        return buffer;
+      }
+
+      async function listen() {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+          },
+        });
+
+        const audioContext = new AudioContext({ sampleRate: 16000 });
+
+        const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+        scriptProcessor.connect(audioContext.destination);
+
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+
+        audioContext.resume();
+
+        const source = audioContext.createMediaStreamSource(mediaStream);
+
+        source.connect(scriptProcessor);
+        source.connect(analyser);
+
+        scriptProcessor.onaudioprocess = (e) => {
+          const left = e.inputBuffer.getChannelData(0);
+          const data = makeWavData(left);
+          if (socket.readyState === 1) {
+            socket.send(data);
+          }
+        };
+      }
+      listen();
     </script>
   </body>
 </html>

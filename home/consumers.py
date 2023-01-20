@@ -1,17 +1,30 @@
 import json
 import numpy
 import torch
-from functools import reduce
+from collections import deque
 from pydub import AudioSegment
 from channels.consumer import AsyncConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
 from models import get_audio
-from transformers import Wav2Vec2Processor, AutoModelForCTC
 from .utils import split_on_silence, rechunk
+from pydub.silence import split_on_silence as split_on_silences
+from stt import speechtotext
 
-processor = Wav2Vec2Processor.from_pretrained("language")
-model = AutoModelForCTC.from_pretrained("language")
 
+yahshi = get_audio("yahshi raxmat")
+beshyarim = get_audio("soat kunduzgi besh yarim bo‘ldi")
+voyeeeey = get_audio("voyeeeey, uyaltirmaaaang")
+tushunmadim = get_audio("sizni yahshi tushunmadim")
+
+
+def hasTalked(dq, audio_segment):
+    sortedDQ = sorted(list(dq))
+    bottom40Middle = sum(sortedDQ[0:40]) / 40
+    parts = split_on_silences(audio_segment, min_silence_len=200, silence_thresh=bottom40Middle + 32)
+    if len(parts) == 0:
+        return False
+    print(sum(parts))
+    return sum(parts)
 
 class TestConsumer(AsyncWebsocketConsumer):
     # ws://
@@ -68,12 +81,7 @@ class AudioConsumer(AsyncConsumer):
 
     async def speechtotext(self, message):
         sound = AudioSegment(data=message.get('bytes'), sample_width=2, frame_rate=16000, channels=1)
-        fp_arr = numpy.array(sound.get_array_of_samples()).T.astype(numpy.float32)
-        model_input = processor(fp_arr, sampling_rate=16000, return_tensors="pt").input_values
-        logits = model(model_input).logits
-        bashorat = torch.argmax(logits, dim=-1)
-        transcription = processor.batch_decode(bashorat)
-        text = transcription[0] if len(transcription) > 0 else None
+        text = speechtotext(sound)
 
         if text:
             await self.channel_layer.send(
@@ -141,6 +149,8 @@ class OyqizConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.audio_segment = None
         self.count = 0
+        self.dBFS = None
+        self.listening = False
         await self.accept()
 
     async def disconnect(self, *args, **kwargs):
@@ -150,6 +160,14 @@ class OyqizConsumer(AsyncWebsocketConsumer):
         if not bytes_data:
             return
         audio_segment = AudioSegment(bytes_data, sample_width=2, frame_rate=16000, channels=1)
+        if audio_segment.dBFS != float("-inf") and audio_segment.dBFS > -80.0:
+            dBFS = audio_segment.dBFS
+        else:
+            dBFS = -80.0
+        if self.dBFS is None:
+            self.dBFS = deque(80*[dBFS], 80)
+        elif audio_segment.dBFS != float("-inf"):
+            self.dBFS.appendleft(dBFS)
 
         if self.audio_segment is None:
             self.audio_segment = audio_segment
@@ -158,31 +176,39 @@ class OyqizConsumer(AsyncWebsocketConsumer):
 
         self.count += 1
 
-        if self.count % 8 == 0:
-            chunks = split_on_silence(self.audio_segment)
-            rechunks = [v for v in rechunk(chunks, 3000)]
-
-            cutoff = 0
-
-            for index, (chunk, start, end) in enumerate(rechunks):
-                await self.channel_layer.send(
-                    'audio',
-                    {
-                        'type': 'speechtotext',
-                        'response_type': 'ws.data',
-                        'response_channel': self.channel_name,
-                        'bytes': chunk.raw_data,
-                        'is_final': index != len(rechunks) - 1,
-                    }
-                )
-                if index != len(rechunks) - 1:
-                    cutoff = end
-
-            if cutoff > 0:
-                self.audio_segment = self.audio_segment[cutoff:]
+        if self.count % 4 == 0:
+            if self.listening:
+                if len(self.audio_segment) > 2000 and hasTalked(self.dBFS, self.audio_segment):
+                    text = speechtotext(self.audio_segment)
+                    if len(text) < 4:
+                        return
+                    print(text)
+                    if text in ['qalaysiz', 'yaxshimisiz']:
+                        await self.send(bytes_data=yahshi)
+                    elif text in ['soat', 'soat nechi bo‘ldi']:
+                        await self.send(bytes_data=beshyarim)
+                    elif text in ['yonim', 'jonim', 'asalim']:
+                        await self.send(bytes_data=voyeeeey)
+                    else:
+                        await self.send(bytes_data=tushunmadim)
+                    await self.send(text_data=json.dumps({
+                        'is_listening': False,
+                    }))
+                    self.listening = False
+            else:
+                if len(self.audio_segment) > 1000:
+                    self.audio_segment = self.audio_segment[-1000:]
+                if hasTalked(self.dBFS, self.audio_segment):
+                    text = speechtotext(self.audio_segment)
+                    print(text)
+                    if text in ['oyqiz', 'oy qiz', 'voy qiz', 'oyiqiz', 'oyi qiz', 'o‘yqiz', 'boyqiz', 'boy qiz']:
+                        # audio = get_audio("labbay eshitaman")
+                        # await self.send(bytes_data=audio)
+                        self.audio_segment = None
+                        await self.send(text_data=json.dumps({
+                            'is_listening': True,
+                        }))
+                        self.listening = True
 
     async def ws_data(self, message):
-        await self.send(text_data=json.dumps({
-            'text': message.get('text'),
-            'is_final': message.get('is_final'),
-        }))
+        await self.send(bytes_data=message['audio'])
