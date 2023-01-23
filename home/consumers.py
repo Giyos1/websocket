@@ -109,7 +109,6 @@ class LiveConsumer(AsyncWebsocketConsumer):
         if self.count % 8 == 0:
             chunks = split_on_silence(self.audio_segment)
             rechunks = [v for v in rechunk(chunks, 3000)]
-
             cutoff = 0
 
             for index, (chunk, start, end) in enumerate(rechunks):

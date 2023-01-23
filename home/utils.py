@@ -24,7 +24,6 @@ def split_on_silence(audio_segment):
             seek_step=10,
         )
     ]
-
     for range_i, range_ii in pairwise(output_ranges):
         last_end = range_i[1]
         next_start = range_ii[0]
@@ -68,4 +67,3 @@ def rechunk(chunks, max_length):
             chunk = chunk + _chunk
             end = _end
     yield [chunk, start, end]
-
