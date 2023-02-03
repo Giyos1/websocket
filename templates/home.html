@@ -13,6 +13,7 @@
   </head>
   <body>
     <div id="siri-container"></div>
+    <button id="start-button" type="button">Start</button>
     <script
       type="text/javascript"
       src="{% static '/js/AudioFeeder.min.js' %}"
@@ -20,92 +21,96 @@
     <script src="https://unpkg.com/siriwave/dist/siriwave.umd.min.js"></script>
 
     <script type="text/javascript">
-      var siriWave = new SiriWave({
+      const siriWave = new SiriWave({
         style: "ios9",
         container: document.getElementById("siri-container"),
         width: 640,
         height: 200,
         autostart: false,
       });
-
-      const protocol = location.protocol === "https:" ? "wss" : "ws";
-      const socket = new WebSocket(`${protocol}://${location.host}/ws/oyqiz/`);
-      socket.binaryType = "arraybuffer";
-      socket.onopen = (event) => {
-        window.feeder = new AudioFeeder();
-        feeder.init(2, 24000);
-        feeder.waitUntilReady(function () {
-          feeder.start();
-        });
-      };
-      socket.onmessage = (event) => {
-        if (typeof event.data === "string") {
-          const data = JSON.parse(event.data);
-          if (data.is_listening === true) {
-            siriWave.start();
-          }
-          if (data.is_listening === false) {
-            siriWave.stop();
-          }
-        } else {
-          const floatArray = new Float32Array(event.data);
-          feeder.bufferData([floatArray, floatArray]);
-        }
-      };
-      socket.onclose = (event) => {
-        console.log("onclose", event);
-      };
-      socket.onerror = (event) => {
-        console.log("onerror", event);
-      };
-
-      function makeWavData(data) {
-        var buffer = new ArrayBuffer(2 * data.length);
-        var uint8 = new Uint8Array(buffer);
-        var i, d;
-
-        for (i = 0; i < data.length; i++) {
-          d = (data[i] * 32767 + 0x10000) & 0xffff;
-          uint8[i * 2] = d & 0xff;
-          uint8[i * 2 + 1] = d >>> 8;
-        }
-
-        return buffer;
-      }
-
-      async function listen() {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: false,
-          audio: {
-            channelCount: 1,
-            sampleRate: 16000,
-          },
-        });
-
-        const audioContext = new AudioContext({ sampleRate: 16000 });
-
-        const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
-        scriptProcessor.connect(audioContext.destination);
-
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-
-        audioContext.resume();
-
-        const source = audioContext.createMediaStreamSource(mediaStream);
-
-        source.connect(scriptProcessor);
-        source.connect(analyser);
-
-        scriptProcessor.onaudioprocess = (e) => {
-          const left = e.inputBuffer.getChannelData(0);
-          const data = makeWavData(left);
-          if (socket.readyState === 1) {
-            socket.send(data);
+      function start() {
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        const socket = new WebSocket(`${protocol}://${location.host}/ws/oyqiz/`);
+        socket.binaryType = "arraybuffer";
+        socket.onopen = (event) => {
+          window.feeder = new AudioFeeder();
+          feeder.init(2, 24000);
+          feeder.waitUntilReady(function () {
+            feeder.start();
+          });
+        };
+        socket.onmessage = (event) => {
+          if (typeof event.data === "string") {
+            const data = JSON.parse(event.data);
+            if (data.is_listening === true) {
+              siriWave.start();
+            }
+            if (data.is_listening === false) {
+              siriWave.stop();
+            }
+          } else {
+            const floatArray = new Float32Array(event.data);
+            feeder.bufferData([floatArray, floatArray]);
           }
         };
+        socket.onclose = (event) => {
+          console.log("onclose", event);
+        };
+        socket.onerror = (event) => {
+          console.log("onerror", event);
+        };
+
+        function makeWavData(data) {
+          var buffer = new ArrayBuffer(2 * data.length);
+          var uint8 = new Uint8Array(buffer);
+          var i, d;
+
+          for (i = 0; i < data.length; i++) {
+            d = (data[i] * 32767 + 0x10000) & 0xffff;
+            uint8[i * 2] = d & 0xff;
+            uint8[i * 2 + 1] = d >>> 8;
+          }
+
+          return buffer;
+        }
+
+        async function listen() {
+          const mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: {
+              channelCount: 1,
+              sampleRate: 16000,
+            },
+          });
+
+          const audioContext = new AudioContext({sampleRate: 16000});
+
+          const scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+          scriptProcessor.connect(audioContext.destination);
+
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 2048;
+
+          audioContext.resume();
+
+          const source = audioContext.createMediaStreamSource(mediaStream);
+
+          source.connect(scriptProcessor);
+          source.connect(analyser);
+
+          scriptProcessor.onaudioprocess = (e) => {
+            const left = e.inputBuffer.getChannelData(0);
+            const data = makeWavData(left);
+            if (socket.readyState === 1) {
+              socket.send(data);
+            }
+          };
+        }
+        listen();
       }
-      listen();
+      document.getElementById("start-button").addEventListener("click", () => {
+        start();
+      });
     </script>
   </body>
 </html>

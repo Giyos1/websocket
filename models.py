@@ -20,4 +20,5 @@ def get_audio(text):
 
     return struct.pack('%sf' % len(floatlist), *floatlist)
 
+
 get_audio("salom")

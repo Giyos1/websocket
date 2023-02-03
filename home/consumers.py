@@ -9,10 +9,9 @@ from models import get_audio
 from .utils import split_on_silence, rechunk
 from pydub.silence import split_on_silence as split_on_silences
 from stt import speechtotext
-
+from .utils import get_time,replace_numbers_with_words_uzbek,get_weather_json_to_word
 
 yahshi = get_audio("yahshi raxmat")
-beshyarim = get_audio("soat kunduzgi besh yarim bo‘ldi")
 voyeeeey = get_audio("voyeeeey, uyaltirmaaaang")
 tushunmadim = get_audio("sizni yahshi tushunmadim")
 
@@ -56,7 +55,7 @@ class AudioConsumer(AsyncConsumer):
         response_channel = message.get('response_channel')
         response_type = message.get('response_type')
         text = message.get('text')
-
+        text = replace_numbers_with_words_uzbek(text)
         text_list = text.split()
 
         while len(text_list) > 5:
@@ -185,9 +184,11 @@ class OyqizConsumer(AsyncWebsocketConsumer):
                     if text in ['qalaysiz', 'yaxshimisiz']:
                         await self.send(bytes_data=yahshi)
                     elif text in ['soat', 'soat nechi bo‘ldi']:
-                        await self.send(bytes_data=beshyarim)
+                        await self.send(bytes_data=get_audio(get_time()))
                     elif text in ['yonim', 'jonim', 'asalim']:
                         await self.send(bytes_data=voyeeeey)
+                    elif text in ['ob havo','havo','ob ha','obi havo']:
+                        await self.send(bytes_data=get_audio(get_weather_json_to_word()))
                     else:
                         await self.send(bytes_data=tushunmadim)
                     await self.send(text_data=json.dumps({
