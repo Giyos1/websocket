@@ -2,8 +2,6 @@
 import itertools
 from datetime import datetime
 from pydub.silence import detect_nonsilent
-from translate import Translator
-
 
 # from the itertools documentation
 def pairwise(iterable):
@@ -75,7 +73,7 @@ def get_time():
     current_time = datetime.now()
     hour = current_time.hour
     minute = current_time.minute
-    return get_time_to_word(str(hour)) + " dan " + get_time_to_word((str(minute)) + " daqiqa otdi"
+    return get_time_to_word(str(hour)) + " dan " + get_time_to_word(str(minute)) + " daqiqa otdi"
 
 
 def get_time_to_word(son) -> str:
