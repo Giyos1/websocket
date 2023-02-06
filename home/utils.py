@@ -1,5 +1,6 @@
+
 import itertools
-import time
+from datetime import datetime
 from pydub.silence import detect_nonsilent
 from translate import Translator
 
@@ -71,16 +72,14 @@ def rechunk(chunks, max_length):
 
 
 def get_time():
-    current_time = time.time()
-    readable_time = time.ctime(current_time)
-    time_words = readable_time.split()
-    hours = (time_words[3].split(':')[0])
-    minute = (time_words[3].split(':')[1])
-
-    return get_time_to_word(str(hours)) + " dan " + get_time_to_word(minute) + " daqiqa otdi"
+    current_time = datetime.now()
+    hour = current_time.hour
+    minute = current_time.minute
+    return get_time_to_word(str(hour)) + " dan " + get_time_to_word((str(minute)) + " daqiqa otdi"
 
 
 def get_time_to_word(son) -> str:
+    int_son = int(son)
     sonlar = {
         "9": "to'qqiz",
         "1": "bir",
@@ -98,8 +97,8 @@ def get_time_to_word(son) -> str:
         "40": "qirq",
         "50": "ellik"
     }
-    if int(son) // 10 >= 1 and int(son) % 10 != 0:
-        return sonlar.get(str(int(son) // 10 * 10)) + " " + sonlar.get(str(int(son) % 10))
+    if int_son // 10 >= 1 and int_son % 10 != 0:
+        return sonlar.get(str(int_son // 10 * 10)) + " " + sonlar.get(str(int_son % 10))
     return sonlar.get(son)
 
 
